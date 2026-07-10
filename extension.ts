@@ -3,7 +3,14 @@ import { EditorView, ViewUpdate, gutter, lineNumbers, GutterMarker } from "@code
 import { Compartment, EditorState } from "@codemirror/state";
 import {foldedRanges} from "@codemirror/language"
 
-let relativeLineNumberGutter = new Compartment();
+const lineNumberGutterTheme = EditorView.theme({
+  ".cm-lineNumbers": {
+    fontFamily: "monospace",
+    whiteSpace: "pre",
+    // prevent relative line numbers from shifting on files with ~10-20 lines
+    minWidth: "25px",
+  },
+});
 
 class Marker extends GutterMarker {
   /** The text to render in gutter */
@@ -80,25 +87,32 @@ function relativeLineNumbers(lineNo: number, state: EditorState) {
     return (Math.abs(cursorLine - lineNo) - foldedCount).toString().padStart(charLength, " ");
   }
 }
-// This shows the numbers in the gutter
-const showLineNumbers = relativeLineNumberGutter.of(
-  lineNumbers({ formatNumber: relativeLineNumbers })
-);
-
-// This ensures the numbers update
-// when selection (cursorActivity) happens
-const lineNumbersUpdateListener = EditorView.updateListener.of(
-  (viewUpdate: ViewUpdate) => {
-    if (viewUpdate.selectionSet) {
-      viewUpdate.view.dispatch({
-        effects: relativeLineNumberGutter.reconfigure(
-          lineNumbers({ formatNumber: relativeLineNumbers })
-        ),
-      });
-    }
-  }
-);
-
 export function lineNumbersRelative(): Extension {
-  return [absoluteLineNumberGutter, showLineNumbers, lineNumbersUpdateListener];
+  const relativeLineNumberGutter = new Compartment();
+
+  // This shows the numbers in the gutter
+  const showLineNumbers = relativeLineNumberGutter.of(
+    lineNumbers({ formatNumber: relativeLineNumbers })
+  );
+
+  // This ensures the numbers update
+  // when selection (cursorActivity) happens
+  const lineNumbersUpdateListener = EditorView.updateListener.of(
+    (viewUpdate: ViewUpdate) => {
+      if (viewUpdate.selectionSet) {
+        viewUpdate.view.dispatch({
+          effects: relativeLineNumberGutter.reconfigure(
+            lineNumbers({ formatNumber: relativeLineNumbers })
+          ),
+        });
+      }
+    }
+  );
+
+  return [
+    absoluteLineNumberGutter,
+    lineNumberGutterTheme,
+    showLineNumbers,
+    lineNumbersUpdateListener,
+  ];
 }

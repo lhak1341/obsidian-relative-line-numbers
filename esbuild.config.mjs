@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from 'builtin-modules'
+import { builtinModules } from "node:module";
 
 const banner =
 `/*
@@ -11,7 +11,7 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === 'production');
 
-esbuild.build({
+const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
@@ -41,12 +41,19 @@ esbuild.build({
 		'@codemirror/text',
 		'@codemirror/tooltip',
 		'@codemirror/view',
-		...builtins],
+		...builtinModules],
 	format: 'cjs',
-	watch: !prod,
 	target: 'es2016',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
+	minify: prod,
 	outfile: 'main.js',
-}).catch(() => process.exit(1));
+});
+
+if (prod) {
+	await context.rebuild();
+	process.exit(0);
+} else {
+	await context.watch();
+}

@@ -2,10 +2,15 @@
 *.iml
 .idea
 
-# npm
+# macOS
+.DS_Store
+
+# dependencies
 node_modules
-package-lock.json
 
 # build
 main.js
 *.js.map
+
+.claude/
+temp/

@@ -1,19 +1,25 @@
-import { Plugin } from "obsidian";
+import { EventRef, Plugin } from "obsidian";
 import { lineNumbersRelative } from "./extension";
 import { Extension } from "@codemirror/state";
 
+const SHOW_LINE_NUMBER_KEY = "showLineNumber";
+
+interface VaultConfig {
+  getConfig(key: typeof SHOW_LINE_NUMBER_KEY): boolean;
+  on(name: "config-changed", callback: () => void, ctx?: unknown): EventRef;
+}
+
 export default class RelativeLineNumbers extends Plugin {
   private editorExtension: Extension[] = [];
-  enabled: boolean;
+  enabled = false;
 
-  isLegacy() {
-    return (this.app as any).vault.config?.legacyEditor;
+  private get vaultConfig(): VaultConfig {
+    return this.app.vault as unknown as VaultConfig;
   }
 
-  async onload() {
+  onload(): void {
     this.registerEditorExtension(this.editorExtension);
-    // @ts-ignore
-    const showLineNumber: Boolean = this.app.vault.getConfig("showLineNumber");
+    const showLineNumber = this.vaultConfig.getConfig(SHOW_LINE_NUMBER_KEY);
     if (showLineNumber) {
       this.enable();
     }
@@ -21,7 +27,7 @@ export default class RelativeLineNumbers extends Plugin {
     this.setupConfigChangeListener();
     this.addCommand({
       id: "toggle-relative-line-numbers",
-      name: "Toggle Relative Line Numbers",
+      name: "Toggle relative numbering",
       callback: () => {
         if (showLineNumber) {
           if (this.enabled) {
@@ -34,80 +40,37 @@ export default class RelativeLineNumbers extends Plugin {
     });
   }
 
-  onunload() {
+  onunload(): void {
     this.disable();
   }
 
-  enable() {
+  enable(): void {
     this.enabled = true;
-
-    if (this.isLegacy()) {
-      this.legacyEnable();
-    } else {
-      this.editorExtension.length = 0;
-      this.editorExtension.push(lineNumbersRelative());
-      this.app.workspace.updateOptions();
-    }
+    this.editorExtension.length = 0;
+    this.editorExtension.push(lineNumbersRelative());
+    this.app.workspace.updateOptions();
   }
 
-  disable() {
+  disable(): void {
     this.enabled = false;
-    if (this.isLegacy()) {
-      this.legacyDisable();
-    } else {
-      this.editorExtension.length = 0;
-      this.app.workspace.updateOptions();
-    }
+    this.editorExtension.length = 0;
+    this.app.workspace.updateOptions();
   }
 
-  legacyEnable() {
-    this.registerCodeMirror((cm) => {
-      cm.on("cursorActivity", this.legacyRelativeLineNumbers);
-    });
-  }
-
-  legacyDisable() {
-    this.app.workspace.iterateCodeMirrors((cm) => {
-      cm.off("cursorActivity", this.legacyRelativeLineNumbers);
-      cm.setOption(
-        "lineNumberFormatter",
-        // @ts-ignore
-        CodeMirror.defaults["lineNumberFormatter"]
-      );
-    });
-  }
-
-  setupConfigChangeListener() {
-    // @ts-ignore
-    const configChangedEvent = this.app.vault.on("config-changed", () => {
-      const showLineNumber: Boolean =
-        // @ts-ignore
-        this.app.vault.getConfig("showLineNumber");
-      if (showLineNumber && !this.enabled) {
-        this.enable();
-      } else if (!showLineNumber && this.enabled) {
-        this.disable();
-      }
-    });
-
-    // @ts-ignore
-    configChangedEvent.ctx = this;
-
-    this.registerEvent(configChangedEvent);
-  }
-
-  legacyRelativeLineNumbers(cm: CodeMirror.Editor) {
-    const current = cm.getCursor().line + 1;
-    if (cm.state.curLineNum === current) {
-      return;
-    }
-    cm.state.curLineNum = current;
-    cm.setOption("lineNumberFormatter", (line: number) => {
-      if (line === current) {
-        return String(current);
-      }
-
-      return String(Math.abs(current - line));
-    });
+  private setupConfigChangeListener(): void {
+    this.registerEvent(
+      this.vaultConfig.on(
+        "config-changed",
+        () => {
+          const showLineNumber = this.vaultConfig.getConfig(SHOW_LINE_NUMBER_KEY);
+          if (showLineNumber && !this.enabled) {
+            this.enable();
+          } else if (!showLineNumber && this.enabled) {
+            this.disable();
+          }
+        },
+        this
+      )
+    );
   }
 }
